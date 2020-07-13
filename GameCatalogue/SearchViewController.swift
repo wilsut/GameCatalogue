@@ -1,105 +1,33 @@
 //
-//  ViewController.swift
+//  SearchViewController.swift
 //  GameCatalogue
 //
-//  Created by William Sutanto on 10/07/20.
+//  Created by William Sutanto on 12/07/20.
 //  Copyright © 2020 William Sutanto. All rights reserved.
 //
 
 import UIKit
 
-let pageSize = "10"
-var components = URLComponents(string: "https://api.rawg.io/api/games")!
-
-enum DownloadState {
-    case new, downloaded, failed
-}
-
-struct Games: Codable {
-    let count: Int
+class SearchViewController: UIViewController {
     
-    let games: [Game]
-    
-    enum CodingKeys: String, CodingKey {
-        case count
-        
-        case games = "results"
-    }
-}
-
-class Game: Codable {
-    let id: Int
-    let name: String
-    let released: String
-    let backgroundImage: String
-    let rating: Double
-    
-    var image: UIImage?
-    var state: DownloadState = .new
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case name
-        case released
-        case backgroundImage = "background_image"
-        case rating
-    }
-}
-
-class ImageDownloader: Operation {
-    private let _game: Game
-    
-    init(game: Game) {
-        _game = game
-    }
-    
-    override func main() {
-        if isCancelled {
-            return
-        }
-        
-        guard let imageData = try? Data(contentsOf: URL(string: _game.backgroundImage)!) else { return }
-        
-        if isCancelled {
-            return
-        }
-        
-        if !imageData.isEmpty {
-            _game.image = UIImage(data: imageData)
-            _game.state = .downloaded
-        } else {
-            _game.image = nil
-            _game.state = .failed
-        }
-    }
-}
-
-class PendingOperations {
-    lazy var downloadInProgress: [IndexPath : Operation] = [:]
-    
-    lazy var downloadQueue: OperationQueue = {
-        var queue = OperationQueue()
-        queue.name = "com.dicoding.imagedownload"
-        queue.maxConcurrentOperationCount = 2
-        return queue
-    }()
-}
-
-class ViewController: UIViewController {
+    @IBOutlet weak var searchBar: UISearchBar!
     @IBOutlet weak var gameTableView: UITableView!
     
     private let _pendingOperations = PendingOperations()
     
     var games = [Game]()
+    var search: String = ""
     
     override func viewDidLoad() {
         super.viewDidLoad()
-                
+        
         gameTableView.backgroundView = nil
         gameTableView.backgroundColor = UIColor.black
         gameTableView.dataSource = self
         gameTableView.delegate = self
         gameTableView.register(UINib(nibName: "GameTableViewCell", bundle: nil), forCellReuseIdentifier: "GameCell")
+        
+        searchBar.delegate = self
         
         components.queryItems = [
             URLQueryItem(name: "page_size", value: pageSize)
@@ -152,7 +80,7 @@ class ViewController: UIViewController {
     }
 }
 
-extension ViewController: UITableViewDataSource{
+extension SearchViewController: UITableViewDataSource{
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return self.games.count
     }
@@ -194,12 +122,42 @@ extension ViewController: UITableViewDataSource{
     
 }
 
-extension ViewController: UITableViewDelegate{
+extension SearchViewController: UITableViewDelegate{
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let detail = DetailViewController(nibName: "DetailViewController", bundle: nil)
         
         detail.game = games[indexPath.row]
         
         self.navigationController?.pushViewController(detail, animated: true)
+    }
+}
+
+extension SearchViewController: UISearchBarDelegate {
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        search = searchText
+    }
+    
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        components.queryItems = [
+            URLQueryItem(name: "page_size", value: pageSize),
+            URLQueryItem(name: "search", value: search)
+        ]
+        
+        let request = URLRequest(url: components.url!)
+        
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            guard let response = response as? HTTPURLResponse, let data = data else { return }
+            
+            if response.statusCode == 200 {
+                DispatchQueue.main.async {
+                    self.games = try! JSONDecoder().decode(Games.self, from: data).games
+                    self.gameTableView.reloadData()
+                }
+            } else {
+                print("ERROR: \(data), HTTP Status: \(response.statusCode)")
+            }
+        }
+        
+        task.resume()
     }
 }
