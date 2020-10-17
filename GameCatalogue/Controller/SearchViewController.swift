@@ -26,18 +26,14 @@ class SearchViewController: UIViewController {
         gameTableView.dataSource = self
         gameTableView.delegate = self
         gameTableView.register(UINib(nibName: "GameTableViewCell", bundle: nil), forCellReuseIdentifier: "GameCell")
-        
         searchBar.delegate = self
-        
         components.queryItems = [
             URLQueryItem(name: "page_size", value: pageSize)
         ]
         
         let request = URLRequest(url: components.url!)
-        
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+        let task = URLSession.shared.dataTask(with: request) { data, response, _ in
             guard let response = response as? HTTPURLResponse, let data = data else { return }
-            
             if response.statusCode == 200 {
                 DispatchQueue.main.async {
                     self.games = try! JSONDecoder().decode(Games.self, from: data).games
@@ -47,7 +43,6 @@ class SearchViewController: UIViewController {
                 print("ERROR: \(data), HTTP Status: \(response.statusCode)")
             }
         }
-        
         task.resume()
     }
     
@@ -63,7 +58,6 @@ class SearchViewController: UIViewController {
         let downloader = ImageDownloader(game: game)
         downloader.completionBlock = {
             if downloader.isCancelled { return }
-            
             DispatchQueue.main.async {
                 self._pendingOperations.downloadInProgress.removeValue(forKey: indexPath)
                 self.gameTableView.reloadRows(at: [indexPath], with: .automatic)
@@ -74,13 +68,12 @@ class SearchViewController: UIViewController {
         _pendingOperations.downloadQueue.addOperation(downloader)
     }
     
-    
     fileprivate func toggleSuspendOperations(isSuspended: Bool) {
         _pendingOperations.downloadQueue.isSuspended = isSuspended
     }
 }
 
-extension SearchViewController: UITableViewDataSource{
+extension SearchViewController: UITableViewDataSource {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return self.games.count
     }
@@ -95,7 +88,6 @@ extension SearchViewController: UITableViewDataSource{
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "GameCell", for: indexPath) as! GameTableViewCell
-        
         let game = self.games[indexPath.row]
         cell.name.text = game.name
         cell.released.text = game.released
@@ -119,15 +111,12 @@ extension SearchViewController: UITableViewDataSource{
         
         return cell
     }
-    
 }
 
-extension SearchViewController: UITableViewDelegate{
+extension SearchViewController: UITableViewDelegate {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let detail = DetailViewController(nibName: "DetailViewController", bundle: nil)
-        
         detail.game = games[indexPath.row]
-        
         self.navigationController?.pushViewController(detail, animated: true)
     }
 }
@@ -142,22 +131,24 @@ extension SearchViewController: UISearchBarDelegate {
             URLQueryItem(name: "page_size", value: pageSize),
             URLQueryItem(name: "search", value: search)
         ]
-        
         let request = URLRequest(url: components.url!)
-        
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+        let task = URLSession.shared.dataTask(with: request) { data, response, _ in
             guard let response = response as? HTTPURLResponse, let data = data else { return }
-            
             if response.statusCode == 200 {
                 DispatchQueue.main.async {
-                    self.games = try! JSONDecoder().decode(Games.self, from: data).games
-                    self.gameTableView.reloadData()
+                    do {
+                        self.games = try JSONDecoder().decode(Games.self, from: data).games
+                        self.gameTableView.reloadData()
+                    } catch {
+                        let alert = UIAlertController(title: "Not found!", message: "Please try again", preferredStyle: .alert)
+                        alert.addAction(UIAlertAction(title: "OK", style: .default) )
+                        self.present(alert, animated: true, completion: nil)
+                    }
                 }
             } else {
                 print("ERROR: \(data), HTTP Status: \(response.statusCode)")
             }
         }
-        
         task.resume()
     }
 }

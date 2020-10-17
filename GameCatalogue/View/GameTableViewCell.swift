@@ -14,7 +14,7 @@ class GameTableViewCell: UITableViewCell {
     @IBOutlet weak var name: UILabel!
     @IBOutlet weak var released: UILabel!
     @IBOutlet weak var rating: UILabel!
-    
+
     override func awakeFromNib() {
         super.awakeFromNib()
         // Initialization code
